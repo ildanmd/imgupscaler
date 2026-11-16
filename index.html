@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>이미지 화질 개선</title>
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    --bg: #f6f4f0; --card: #ffffff; --ink: #1f1d1a; --muted: #6f6a62;
+    --line: #e2ddd4; --accent: #c2410c; --accent-ink: #ffffff; --soft: #fbeee6; --ok: #15803d;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+    line-height: 1.5;
+  }
+  main { max-width: 960px; margin: 0 auto; padding: 40px 20px 64px; }
+  h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -0.02em; }
+  .sub { color: var(--muted); margin: 0 0 6px; font-size: 15px; }
+  .badges { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 22px; }
+  .badge { font-size: 12px; padding: 3px 10px; border-radius: 99px; background: #ece8e0; color: var(--muted); }
+  .badge.good { background: #e7f4ea; color: var(--ok); }
+  .badge.warn { background: #fdf0d8; color: #92400e; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px; margin-bottom: 16px; }
+
+  #drop {
+    border: 2px dashed var(--line); border-radius: 12px; padding: 30px 16px; text-align: center;
+    cursor: pointer; transition: border-color .15s, background .15s; color: var(--muted);
+  }
+  #drop.over, #drop:hover, #drop:focus-visible { border-color: var(--accent); background: var(--soft); outline: none; }
+  #drop strong { color: var(--ink); display: block; font-size: 16px; margin-bottom: 4px; }
+
+  .opts { display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 16px; margin-top: 18px; }
+  fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+  legend { font-size: 13px; color: var(--muted); margin-bottom: 6px; padding: 0; }
+  .seg { display: flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+  .seg label { flex: 1; text-align: center; cursor: pointer; }
+  .seg input { position: absolute; opacity: 0; pointer-events: none; }
+  .seg span { display: block; padding: 8px 6px; font-size: 14px; }
+  .seg input:checked + span { background: var(--ink); color: #fff; }
+  .seg input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .seg input:disabled + span { opacity: .5; cursor: not-allowed; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 6px; min-height: 18px; }
+  .range { display: flex; align-items: center; gap: 10px; height: 38px; }
+  .range input { flex: 1; accent-color: var(--accent); }
+  .range output { font-size: 14px; width: 44px; text-align: right; font-variant-numeric: tabular-nums; }
+
+  .actions { display: flex; gap: 10px; margin-top: 18px; }
+  button { font-family: inherit; cursor: pointer; }
+  button.primary {
+    flex: 1; padding: 13px; font-size: 16px; font-weight: 600;
+    background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 10px;
+  }
+  button.ghost { padding: 13px 18px; font-size: 15px; background: #fff; color: var(--ink); border: 1px solid var(--line); border-radius: 10px; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+
+  #progressWrap { display: none; margin-top: 16px; }
+  .bar { height: 10px; background: var(--line); border-radius: 99px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+  #progressText { font-size: 13px; color: var(--muted); margin-top: 6px; font-variant-numeric: tabular-nums; }
+  #error { display: none; margin-top: 14px; padding: 10px 12px; border-radius: 8px; background: #fdecec; color: #9b1c1c; font-size: 14px; white-space: pre-line; }
+
+  #listCard { display: none; }
+  .list-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+  .list-head h2 { font-size: 17px; margin: 0; }
+  .list-head .btns { display: flex; gap: 8px; }
+  button.dark { padding: 9px 16px; background: var(--ink); color: #fff; border: 0; border-radius: 9px; font-size: 14px; font-weight: 600; white-space: nowrap; }
+  button.small { padding: 6px 10px; font-size: 13px; background: #fff; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); white-space: nowrap; }
+  #list { list-style: none; margin: 0; padding: 0; max-height: 420px; overflow: auto; border-top: 1px solid var(--line); }
+  #list li { display: grid; grid-template-columns: 44px 1fr auto; gap: 12px; align-items: center; padding: 8px 4px; border-bottom: 1px solid var(--line); cursor: pointer; }
+  #list li.sel { background: var(--soft); }
+  #list img { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; background: #eee; }
+  .nm { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .st { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .st.done { color: var(--ok); } .st.err { color: #9b1c1c; }
+  .mini { height: 4px; background: var(--line); border-radius: 99px; overflow: hidden; margin-top: 4px; }
+  .mini > i { display: block; height: 100%; width: 0; background: var(--accent); }
+  .rowbtns { display: flex; gap: 6px; }
+
+  #result { display: none; }
+  .res-head { margin-bottom: 12px; }
+  .res-head h2 { font-size: 17px; margin: 0; }
+  #meta { font-size: 13px; color: var(--muted); }
+  #stage { display: flex; justify-content: center; }
+  #compare {
+    position: relative; overflow: hidden; border-radius: 10px;
+    background: #eee; user-select: none; touch-action: none; cursor: ew-resize;
+  }
+  #compare.zoomed { cursor: grab; } #compare.panning { cursor: grabbing; }
+  #compare img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; transform-origin: 0 0; pointer-events: none; -webkit-user-drag: none; }
+  #handle { position: absolute; top: 0; bottom: 0; width: 28px; margin-left: -14px; cursor: ew-resize; }
+  #handle::before { content: ""; position: absolute; top: 0; bottom: 0; left: 13px; width: 2px; background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.25); }
+  #handle::after {
+    content: "◀ ▶"; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    background: #fff; color: #333; font-size: 10px; padding: 6px 7px; border-radius: 99px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.3); white-space: nowrap; letter-spacing: 2px;
+  }
+  .tag { position: absolute; top: 10px; padding: 3px 9px; font-size: 12px; border-radius: 99px; background: rgba(0,0,0,.6); color: #fff; pointer-events: none; }
+  .tag.l { left: 10px; } .tag.r { right: 10px; }
+  .zoomrow { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 13px; color: var(--muted); }
+  .zoomrow input { flex: 1; accent-color: var(--accent); }
+  .tip { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  footer { font-size: 12px; color: var(--muted); margin-top: 24px; }
+  footer a { color: inherit; }
+
+  @media (max-width: 640px) { .opts { grid-template-columns: 1fr; } .rowbtns .small.view { display: none; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>이미지 화질 개선</h1>
+  <p class="sub">작고 흐린 사진을 AI로 2~4배 선명하게 키워요. 여러 장을 한 번에 올리면 순서대로 처리해요.</p>
+  <div class="badges">
+    <span class="badge good">사진은 이 기기 밖으로 나가지 않아요</span>
+    <span class="badge" id="deviceInfo">준비 중…</span>
+  </div>
+
+  <section class="card">
+    <div id="drop" tabindex="0" role="button" aria-label="이미지 선택">
+      <strong>사진을 여기에 끌어다 놓거나 클릭해서 선택</strong>
+      <span>JPG · PNG · WebP · 여러 장 가능</span>
+    </div>
+    <input type="file" id="file" accept="image/jpeg,image/png,image/webp" multiple hidden>
+
+    <div class="opts">
+      <fieldset>
+        <legend>배율</legend>
+        <div class="seg">
+          <label><input type="radio" name="scale" value="2" checked><span>2배</span></label>
+          <label><input type="radio" name="scale" value="4"><span>4배</span></label>
+        </div>
+        <div class="hint" id="scaleHint">500×500 → 1000×1000</div>
+      </fieldset>
+      <fieldset>
+        <legend>저장 형식</legend>
+        <div class="seg">
+          <label><input type="radio" name="fmt" value="jpg" checked><span>JPG</span></label>
+          <label><input type="radio" name="fmt" value="png"><span>PNG</span></label>
+        </div>
+        <div class="hint" id="fmtHint"></div>
+      </fieldset>
+      <fieldset>
+        <legend>질감 살리기 (원본 섞기)</legend>
+        <div class="range">
+          <input type="range" id="texture" min="0" max="60" step="5" value="20" aria-label="질감 살리기">
+          <output id="textureVal">20%</output>
+        </div>
+        <div class="hint">올릴수록 원본의 자잘한 질감이 돌아오고, 내릴수록 매끈하고 또렷해요. 처리 후에도 바꿀 수 있어요.</div>
+      </fieldset>
+    </div>
+
+    <div class="actions">
+      <button class="primary" id="run" disabled>화질 개선 시작</button>
+      <button class="ghost" id="stop" hidden>중지</button>
+    </div>
+    <div id="progressWrap" aria-live="polite">
+      <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="barBox"><i id="barFill"></i></div>
+      <div id="progressText"></div>
+    </div>
+    <div id="error" role="alert"></div>
+  </section>
+
+  <section class="card" id="listCard">
+    <div class="list-head">
+      <h2 id="listTitle">사진</h2>
+      <div class="btns">
+        <button class="small" id="clear">목록 비우기</button>
+        <button class="dark" id="zip" disabled>전체 ZIP으로 받기</button>
+      </div>
+    </div>
+    <ul id="list"></ul>
+  </section>
+
+  <section class="card" id="result">
+    <div class="res-head">
+      <h2 id="resName">결과</h2>
+      <div id="meta"></div>
+    </div>
+    <div id="stage">
+      <div id="compare">
+        <img id="imgAfter" alt="개선된 이미지">
+        <img id="imgMix" alt="">
+        <img id="imgBefore" alt="원본 이미지">
+        <div id="handle"></div>
+        <span class="tag l">원본</span><span class="tag r">개선</span>
+      </div>
+    </div>
+    <div class="zoomrow">
+      <span>확대</span>
+      <input type="range" id="zoom" min="1" max="8" step="0.5" value="1" aria-label="확대 배율">
+      <span id="zoomVal">1x</span>
+      <button class="small" id="zoomReset">원래대로</button>
+    </div>
+    <div class="tip">확대한 뒤 사진을 끌면 위치가 움직여요. 가운데 선은 ◀ ▶ 손잡이를 잡고 옮기고, 더블클릭하면 그 자리를 확대해요.</div>
+  </section>
+
+  <footer>
+    AI 모델: <a href="https://github.com/xinntao/Real-ESRGAN" target="_blank" rel="noopener">Real-ESRGAN</a> realesr-general-x4v3 (BSD-3-Clause, © 2021 Xintao Wang) ·
+    실행 엔진: ONNX Runtime Web (MIT) · 투명 배경은 흰색으로 채워져요.
+  </footer>
+</main>
+
+<script src="ort/ort.webgpu.min.js"></script>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const val = (name) => document.querySelector(`input[name=${name}]:checked`).value;
+
+// ---- 설정 ----
+const MODEL_URL = "models/realesr-general-x4v3.onnx";
+const S = 4;                 // 모델 배율
+const CORE = 224, PAD = 16;  // 타일: 가운데 224px + 사방 여백 16px (이음새 방지)
+const IN = CORE + PAD * 2;   // 모델 입력 한 변 (항상 같은 크기로 넣는다)
+const MAX_SIDE = 2000;       // 입력 긴 변 제한
+const MAX_BYTES = 20 * 1024 * 1024;
+
+let session = null, backend = "";
+let items = [], selected = null, running = false, stopFlag = false, seq = 0;
+let msPerMP = null;          // 입력 100만 픽셀당 처리 시간(ETA용)
+
+// ---- 엔진 준비 ----
+async function initEngine() {
+  if (session) return;
+  ort.env.wasm.wasmPaths = new URL("ort/", location.href).href;
+  const opt = { freeDimensionOverrides: { h: IN, w: IN } };
+  let gpuOk = false;
+  try { gpuOk = !!(navigator.gpu && await navigator.gpu.requestAdapter()); } catch {}
+  if (gpuOk) {
+    try {
+      session = await ort.InferenceSession.create(MODEL_URL, { ...opt, executionProviders: ["webgpu"] });
+      backend = "webgpu";
+    } catch (e) { console.warn("WebGPU 실패, CPU로 전환", e); }
+  }
+  if (!session) {
+    ort.env.wasm.numThreads = self.crossOriginIsolated ? Math.min(8, navigator.hardwareConcurrency || 4) : 1;
+    ort.env.wasm.proxy = true; // 화면이 멈추지 않게 별도 스레드에서 계산
+    session = await ort.InferenceSession.create(MODEL_URL, { ...opt, executionProviders: ["wasm"] });
+    backend = "wasm";
+  }
+  const el = $("deviceInfo");
+  if (backend === "webgpu") { el.textContent = "그래픽카드로 처리 중 (빠름)"; el.className = "badge good"; }
+  else { el.textContent = "CPU로 처리 중 (느릴 수 있어요 · 최신 크롬/엣지 권장)"; el.className = "badge warn"; }
+}
+
+// ---- 한 장 업스케일 (타일 단위) ----
+async function upscale(src, w, h, onProgress) {
+  const out = new Uint8ClampedArray(w * S * h * S * 4);
+  const plane = IN * IN, OUT = IN * S, oplane = OUT * OUT, W4 = w * S;
+  const tiles = [];
+  for (let ty = 0; ty < h; ty += CORE) for (let tx = 0; tx < w; tx += CORE) tiles.push([tx, ty]);
+  for (let t = 0; t < tiles.length; t++) {
+    if (stopFlag) throw new Error("__stopped__");
+    const [tx, ty] = tiles[t];
+    const inp = new Float32Array(3 * IN * IN); // 타일마다 새로 만든다 (계산 스레드로 넘어가면 재사용 불가)
+    // 가장자리는 끝 픽셀을 늘려 채워서 입력 크기를 고정한다
+    for (let y = 0; y < IN; y++) {
+      const sy = Math.min(h - 1, Math.max(0, ty - PAD + y));
+      for (let x = 0; x < IN; x++) {
+        const sx = Math.min(w - 1, Math.max(0, tx - PAD + x));
+        const si = (sy * w + sx) * 4, di = y * IN + x;
+        inp[di] = src[si] / 255; inp[plane + di] = src[si + 1] / 255; inp[2 * plane + di] = src[si + 2] / 255;
+      }
+    }
+    const res = await session.run({ x: new ort.Tensor("float32", inp, [1, 3, IN, IN]) });
+    const o = res.y.data;
+    const x1 = Math.min(tx + CORE, w), y1 = Math.min(ty + CORE, h);
+    for (let oy = ty * S; oy < y1 * S; oy++) {
+      const ry = oy - (ty - PAD) * S;
+      for (let ox = tx * S; ox < x1 * S; ox++) {
+        const ri = ry * OUT + (ox - (tx - PAD) * S), oi = (oy * W4 + ox) * 4;
+        out[oi] = o[ri] * 255 + 0.5; out[oi + 1] = o[oplane + ri] * 255 + 0.5; out[oi + 2] = o[2 * oplane + ri] * 255 + 0.5; out[oi + 3] = 255;
+      }
+    }
+    if (res.y.dispose) res.y.dispose();
+    onProgress((t + 1) / tiles.length);
+    await new Promise(r => setTimeout(r)); // 화면 갱신 틈
+  }
+  return new ImageData(out, w * S, h * S);
+}
+
+const toBlob = (canvas, type, q) => new Promise((res, rej) => canvas.toBlob(b => b ? res(b) : rej(new Error("이미지를 저장하지 못했어요.")), type, q));
+function mkCanvas(w, h) { const c = document.createElement("canvas"); c.width = w; c.height = h; return c; }
+const loadImg = (url) => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error("이미지를 읽을 수 없어요.")); i.src = url; });
+
+// ---- 파일 추가 ----
+async function addFiles(fileList) {
+  const errs = [];
+  for (const f of fileList) {
+    if (!/^image\/(jpeg|png|webp)$/.test(f.type)) { errs.push(`${f.name}: JPG·PNG·WebP만 돼요.`); continue; }
+    if (f.size > MAX_BYTES) { errs.push(`${f.name}: 파일이 너무 커요 (최대 20MB).`); continue; }
+    let bmp;
+    try { bmp = await createImageBitmap(f, { imageOrientation: "from-image" }); }
+    catch { errs.push(`${f.name}: 이미지를 읽을 수 없어요.`); continue; }
+    if (Math.max(bmp.width, bmp.height) > MAX_SIDE) { errs.push(`${f.name}: 이미 충분히 커요 (${bmp.width}×${bmp.height}). 긴 변 ${MAX_SIDE}px 이하만 처리해요.`); bmp.close(); continue; }
+    // 흰 배경에 그려서 원본 기준 이미지를 만든다 (투명 배경·회전 정보 정리)
+    const c = mkCanvas(bmp.width, bmp.height), g = c.getContext("2d");
+    g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(bmp, 0, 0); bmp.close();
+    const origBlob = await toBlob(c, "image/png");
+    items.push({ id: ++seq, name: f.name, w: c.width, h: c.height, origUrl: URL.createObjectURL(origBlob),
+                 status: "wait", progress: 0, aiUrl: null, outW: 0, outH: 0, sec: 0, error: "" });
+  }
+  showError(errs.join("\n"));
+  renderList(); updateButtons(); updateHints();
+}
+
+// ---- 목록 ----
+function statusText(it) {
+  if (it.status === "wait") return `${it.w}×${it.h} · 대기 중`;
+  if (it.status === "run") return `${it.w}×${it.h} · 처리 중 ${Math.round(it.progress * 100)}%`;
+  if (it.status === "done") return `${it.w}×${it.h} → ${it.outW}×${it.outH} · 완료 (${it.sec}초)`;
+  return `오류: ${it.error}`;
+}
+function renderList() {
+  $("listCard").style.display = items.length ? "block" : "none";
+  const done = items.filter(i => i.status === "done").length;
+  $("listTitle").textContent = `사진 ${items.length}장` + (done ? ` · 완료 ${done}장` : "");
+  const ul = $("list"); ul.textContent = "";
+  for (const it of items) {
+    const li = document.createElement("li"); li.dataset.id = it.id;
+    if (selected === it.id) li.className = "sel";
+    const img = document.createElement("img"); img.src = it.origUrl; img.alt = ""; img.loading = "lazy";
+    const mid = document.createElement("div"); mid.style.minWidth = "0";
+    const nm = document.createElement("div"); nm.className = "nm"; nm.textContent = it.name;
+    const st = document.createElement("div"); st.className = "st" + (it.status === "done" ? " done" : it.status === "error" ? " err" : ""); st.textContent = statusText(it);
+    mid.append(nm, st);
+    if (it.status === "run") { const m = document.createElement("div"); m.className = "mini"; const i = document.createElement("i"); i.style.width = it.progress * 100 + "%"; m.append(i); mid.append(m); }
+    const btns = document.createElement("div"); btns.className = "rowbtns";
+    if (it.status === "done") {
+      const v = document.createElement("button"); v.className = "small view"; v.textContent = "비교 보기"; v.dataset.act = "view";
+      const s = document.createElement("button"); s.className = "small"; s.textContent = "저장"; s.dataset.act = "save";
+      btns.append(v, s);
+    }
+    if (it.status !== "run") { const x = document.createElement("button"); x.className = "small"; x.textContent = "✕"; x.title = "목록에서 빼기"; x.dataset.act = "del"; btns.append(x); }
+    li.append(img, mid, btns); ul.append(li);
+  }
+}
+function updateRow(it) { // 처리 중에는 해당 줄만 고친다
+  const li = $("list").querySelector(`li[data-id="${it.id}"]`); if (!li) return;
+  li.querySelector(".st").textContent = statusText(it);
+  const bar = li.querySelector(".mini > i"); if (bar) bar.style.width = it.progress * 100 + "%";
+}
+$("list").addEventListener("click", async (e) => {
+  const li = e.target.closest("li"); if (!li) return;
+  const it = items.find(i => i.id === +li.dataset.id); if (!it) return;
+  const act = e.target.dataset.act;
+  if (act === "del") {
+    URL.revokeObjectURL(it.origUrl); if (it.aiUrl) URL.revokeObjectURL(it.aiUrl);
+    items = items.filter(i => i !== it);
+    if (selected === it.id) { selected = null; $("result").style.display = "none"; }
+    renderList(); updateButtons(); return;
+  }
+  if (act === "save") { const b = await composite(it); download(b, outName(it)); return; }
+  if (it.status === "done") showResult(it, true);
+});
+$("clear").addEventListener("click", () => {
+  if (running) return;
+  for (const it of items) { URL.revokeObjectURL(it.origUrl); if (it.aiUrl) URL.revokeObjectURL(it.aiUrl); }
+  items = []; selected = null; $("result").style.display = "none"; $("progressWrap").style.display = "none";
+  renderList(); updateButtons();
+});
+
+function updateButtons() {
+  const waiting = items.filter(i => i.status === "wait").length;
+  const done = items.filter(i => i.status === "done").length;
+  $("run").disabled = running || !waiting;
+  $("run").textContent = running ? "처리 중…" : waiting ? `화질 개선 시작 (${waiting}장)` : "화질 개선 시작";
+  $("stop").hidden = !running;
+  $("zip").disabled = running || !done;
+  $("zip").textContent = done ? `전체 ZIP으로 받기 (${done}장)` : "전체 ZIP으로 받기";
+  $("clear").disabled = running;
+  document.querySelectorAll("input[name=scale]").forEach(el => el.disabled = running);
+}
+function updateHints() {
+  const s = +val("scale"), ref = items[0];
+  $("scaleHint").textContent = ref ? `${ref.w}×${ref.h} → ${ref.w * s}×${ref.h * s}` : `500×500 → ${500 * s}×${500 * s}`;
+  $("fmtHint").textContent = val("fmt") === "jpg" ? "용량이 작아 업로드용으로 적합" : "무손실, 용량 큼";
+}
+document.querySelectorAll(".seg input").forEach(el => el.addEventListener("change", updateHints));
+function showError(msg) { const e = $("error"); e.textContent = msg; e.style.display = msg ? "block" : "none"; }
+
+// ---- 전체 진행 게이지 ----
+function fmtTime(sec) { return sec < 60 ? `약 ${Math.max(1, Math.round(sec))}초` : `약 ${Math.round(sec / 60)}분`; }
+function updateOverall(batch, cur) {
+  const total = batch.length;
+  const finished = batch.filter(i => i.status === "done" || i.status === "error").length;
+  const frac = (finished + (cur ? cur.progress : 0)) / total;
+  $("barFill").style.width = frac * 100 + "%";
+  $("barBox").setAttribute("aria-valuenow", Math.round(frac * 100));
+  let eta = "";
+  if (msPerMP) {
+    let mp = 0;
+    for (const i of batch) { if (i.status === "wait") mp += i.w * i.h / 1e6; else if (i === cur) mp += (i.w * i.h / 1e6) * (1 - i.progress); }
+    if (mp > 0) eta = ` · 남은 시간 ${fmtTime(mp * msPerMP / 1000)}`;
+  }
+  $("progressText").textContent = cur
+    ? `전체 ${finished + 1}/${total}장 · 지금 사진 ${Math.round(cur.progress * 100)}%${eta}`
+    : `전체 ${finished}/${total}장`;
+}
+
+// ---- 실행 ----
+$("run").addEventListener("click", async () => {
+  if (running) return;
+  running = true; stopFlag = false; showError(""); updateButtons();
+  $("progressWrap").style.display = "block"; $("barFill").style.width = "0%";
+  $("progressText").textContent = "AI 모델 불러오는 중… (처음 한 번만 조금 걸려요)";
+  const scale = +val("scale");
+  const batch = items.filter(i => i.status === "wait");
+  const t0 = performance.now();
+  try {
+    await initEngine();
+    for (const it of batch) {
+      if (stopFlag) break;
+      if (!items.includes(it)) continue;
+      it.status = "run"; it.progress = 0; renderList(); updateOverall(batch, it);
+      const ts = performance.now();
+      try {
+        const img = await loadImg(it.origUrl);
+        const c = mkCanvas(it.w, it.h), g = c.getContext("2d", { willReadFrequently: true });
+        g.drawImage(img, 0, 0);
+        const src = g.getImageData(0, 0, it.w, it.h).data;
+        const big = await upscale(src, it.w, it.h, (p) => { it.progress = p * 0.97; updateRow(it); updateOverall(batch, it); });
+        let oc = mkCanvas(big.width, big.height); oc.getContext("2d").putImageData(big, 0, 0);
+        if (scale === 2) { // 4배로 키운 뒤 절반으로 줄인다
+          const half = mkCanvas(it.w * 2, it.h * 2), hg = half.getContext("2d");
+          hg.imageSmoothingEnabled = true; hg.imageSmoothingQuality = "high"; hg.drawImage(oc, 0, 0, half.width, half.height); oc = half;
+        }
+        it.outW = oc.width; it.outH = oc.height;
+        it.aiUrl = URL.createObjectURL(await toBlob(oc, "image/png"));
+        const ms = performance.now() - ts;
+        it.sec = (ms / 1000).toFixed(1); it.status = "done"; it.progress = 1;
+        const rate = ms / (it.w * it.h / 1e6); msPerMP = msPerMP ? msPerMP * 0.5 + rate * 0.5 : rate;
+        if (selected === null) showResult(it, false);
+      } catch (err) {
+        if (err.message === "__stopped__") { it.status = "wait"; it.progress = 0; }
+        else { it.status = "error"; it.error = err.message || "알 수 없는 오류"; console.error(err); }
+      }
+      renderList(); updateOverall(batch, null);
+    }
+    const done = batch.filter(i => i.status === "done").length, bad = batch.filter(i => i.status === "error").length;
+    const sec = Math.round((performance.now() - t0) / 1000);
+    $("barFill").style.width = stopFlag ? $("barFill").style.width : "100%";
+    $("progressText").textContent = (stopFlag ? "중지했어요 · " : "완료 · ") + `${done}장 처리` + (bad ? ` · ${bad}장 실패` : "") + ` · 총 ${sec}초`;
+  } catch (err) {
+    console.error(err);
+    showError("AI 모델을 불러오지 못했어요. 최신 크롬이나 엣지에서 다시 열어 주세요.\n(" + (err.message || err) + ")");
+    $("progressWrap").style.display = "none";
+  } finally {
+    running = false; renderList(); updateButtons();
+  }
+});
+$("stop").addEventListener("click", () => { stopFlag = true; $("progressText").textContent = "중지하는 중…"; });
+
+// ---- 저장 ----
+const texture = () => +$("texture").value / 100;
+function outName(it) { return `${it.name.replace(/\.[^.]+$/, "")}_x${Math.round(it.outW / it.w)}.${val("fmt")}`; }
+async function composite(it) { // AI 결과 위에 원본을 질감 비율만큼 겹쳐서 최종 파일을 만든다
+  const [ai, orig] = await Promise.all([loadImg(it.aiUrl), loadImg(it.origUrl)]);
+  const c = mkCanvas(it.outW, it.outH), g = c.getContext("2d");
+  g.drawImage(ai, 0, 0);
+  const t = texture();
+  if (t > 0) { g.globalAlpha = t; g.imageSmoothingEnabled = true; g.imageSmoothingQuality = "high"; g.drawImage(orig, 0, 0, it.outW, it.outH); }
+  return val("fmt") === "png" ? toBlob(c, "image/png") : toBlob(c, "image/jpeg", 0.95);
+}
+function download(blob, name) {
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+}
+// 압축 없이 묶기만 하는 ZIP (JPG·PNG는 이미 압축돼 있어서 충분)
+const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(u8) { let c = 0xFFFFFFFF; for (let i = 0; i < u8.length; i++) c = CRC[(c ^ u8[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+function makeZip(files) {
+  const enc = new TextEncoder(), parts = [], central = []; let offset = 0;
+  const d = new Date(), time = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1), date = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+  for (const f of files) {
+    const name = enc.encode(f.name), crc = crc32(f.data), n = f.data.length;
+    const lh = new DataView(new ArrayBuffer(30));
+    lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); lh.setUint16(8, 0, true);
+    lh.setUint16(10, time, true); lh.setUint16(12, date, true); lh.setUint32(14, crc, true); lh.setUint32(18, n, true); lh.setUint32(22, n, true); lh.setUint16(26, name.length, true);
+    parts.push(lh.buffer, name, f.data);
+    const ch = new DataView(new ArrayBuffer(46));
+    ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true); ch.setUint16(10, 0, true);
+    ch.setUint16(12, time, true); ch.setUint16(14, date, true); ch.setUint32(16, crc, true); ch.setUint32(20, n, true); ch.setUint32(24, n, true); ch.setUint16(28, name.length, true); ch.setUint32(42, offset, true);
+    central.push(ch.buffer, name);
+    offset += 30 + name.length + n;
+  }
+  const csize = central.reduce((s, p) => s + p.byteLength, 0);
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true); end.setUint32(12, csize, true); end.setUint32(16, offset, true);
+  return new Blob([...parts, ...central, end.buffer], { type: "application/zip" });
+}
+$("zip").addEventListener("click", async () => {
+  const done = items.filter(i => i.status === "done"); if (!done.length) return;
+  const btn = $("zip"); btn.disabled = true;
+  try {
+    const files = [], used = new Set();
+    for (let i = 0; i < done.length; i++) {
+      btn.textContent = `묶는 중… ${i + 1}/${done.length}`;
+      let name = outName(done[i]);
+      for (let k = 2; used.has(name); k++) name = outName(done[i]).replace(/(\.[^.]+)$/, `_${k}$1`);
+      used.add(name);
+      files.push({ name, data: new Uint8Array(await (await composite(done[i])).arrayBuffer()) });
+    }
+    download(makeZip(files), "화질개선_" + done.length + "장.zip");
+  } catch (err) { showError("ZIP을 만들지 못했어요: " + (err.message || err)); }
+  updateButtons();
+});
+
+// ---- 전/후 비교 (확대 + 이동) ----
+const compare = $("compare");
+const view = { z: 1, tx: 0, ty: 0, split: 0.5, cw: 0, ch: 0, ratio: 1 };
+function layout() {
+  const maxW = $("stage").clientWidth, maxH = Math.max(320, window.innerHeight * 0.75);
+  view.cw = Math.round(Math.min(maxW, maxH * view.ratio)); view.ch = Math.round(view.cw / view.ratio);
+  compare.style.width = view.cw + "px"; compare.style.height = view.ch + "px";
+  applyView();
+}
+function applyView() {
+  const v = view;
+  v.tx = Math.min(0, Math.max(v.cw - v.cw * v.z, v.tx)); v.ty = Math.min(0, Math.max(v.ch - v.ch * v.z, v.ty));
+  const t = `translate(${v.tx}px, ${v.ty}px) scale(${v.z})`;
+  for (const id of ["imgAfter", "imgMix", "imgBefore"]) $(id).style.transform = t;
+  // 원본은 화면 기준 선 왼쪽까지만 보이게
+  const localX = Math.max(0, (v.split * v.cw - v.tx) / v.z);
+  $("imgBefore").style.clipPath = `inset(0 ${Math.max(0, v.cw - localX)}px 0 0)`;
+  $("handle").style.left = v.split * 100 + "%";
+  $("imgMix").style.opacity = texture();
+  $("zoom").value = v.z; $("zoomVal").textContent = v.z + "x";
+  compare.classList.toggle("zoomed", v.z > 1);
+}
+function zoomAt(z, px, py) {
+  z = Math.min(8, Math.max(1, z)); const v = view;
+  v.tx = px - (px - v.tx) * (z / v.z); v.ty = py - (py - v.ty) * (z / v.z); v.z = z; applyView();
+}
+function showResult(it, scroll) {
+  selected = it.id;
+  $("imgAfter").src = it.aiUrl; $("imgMix").src = it.origUrl; $("imgBefore").src = it.origUrl;
+  $("resName").textContent = it.name;
+  $("meta").textContent = `${it.w}×${it.h} → ${it.outW}×${it.outH} · ${it.sec}초`;
+  $("result").style.display = "block";
+  view.ratio = it.outW / it.outH; view.z = 1; view.tx = view.ty = 0; view.split = 0.5; layout();
+  document.querySelectorAll("#list li").forEach(li => li.classList.toggle("sel", +li.dataset.id === it.id));
+  if (scroll) $("result").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+let drag = null;
+compare.addEventListener("pointerdown", (e) => {
+  compare.setPointerCapture(e.pointerId);
+  const onHandle = e.target === $("handle");
+  drag = { mode: (onHandle || view.z === 1) ? "split" : "pan", x: e.clientX, y: e.clientY, tx: view.tx, ty: view.ty };
+  if (drag.mode === "split") moveSplit(e); else compare.classList.add("panning");
+});
+compare.addEventListener("pointermove", (e) => {
+  if (!drag) return;
+  if (drag.mode === "split") moveSplit(e);
+  else { view.tx = drag.tx + (e.clientX - drag.x); view.ty = drag.ty + (e.clientY - drag.y); applyView(); }
+});
+["pointerup", "pointercancel"].forEach(t => compare.addEventListener(t, () => { drag = null; compare.classList.remove("panning"); }));
+function moveSplit(e) { const r = compare.getBoundingClientRect(); view.split = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)); applyView(); }
+compare.addEventListener("dblclick", (e) => { const r = compare.getBoundingClientRect(); zoomAt(view.z > 1 ? 1 : 4, e.clientX - r.left, e.clientY - r.top); });
+compare.addEventListener("wheel", (e) => {
+  if (!e.ctrlKey && !e.metaKey) return; e.preventDefault();
+  const r = compare.getBoundingClientRect(); zoomAt(view.z + (e.deltaY < 0 ? 0.5 : -0.5), e.clientX - r.left, e.clientY - r.top);
+}, { passive: false });
+$("zoom").addEventListener("input", () => zoomAt(+$("zoom").value, view.cw / 2, view.ch / 2));
+$("zoomReset").addEventListener("click", () => { view.z = 1; view.tx = view.ty = 0; view.split = 0.5; applyView(); });
+$("texture").addEventListener("input", () => { $("textureVal").textContent = $("texture").value + "%"; $("imgMix").style.opacity = texture(); });
+window.addEventListener("resize", () => { if ($("result").style.display === "block") layout(); });
+
+// ---- 파일 선택 ----
+const drop = $("drop"), fileInput = $("file");
+drop.addEventListener("click", () => fileInput.click());
+drop.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); } });
+fileInput.addEventListener("change", () => { addFiles([...fileInput.files]); fileInput.value = ""; });
+["dragenter", "dragover"].forEach(t => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach(t => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", (e) => addFiles([...e.dataTransfer.files]));
+window.addEventListener("paste", (e) => { const fs = [...e.clipboardData.files]; if (fs.length) addFiles(fs); });
+
+updateHints(); updateButtons();
+$("deviceInfo").textContent = navigator.gpu ? "그래픽카드 가속 지원" : "CPU 모드 (느릴 수 있어요)";
+</script>
+</body>
+</html>
